@@ -72,6 +72,8 @@ namespace DellPrecision7820
                 }
             }
 
+            if (_smbios != null) WarnIfZonesIgnored();
+
             _dcim.Clear();
             try { PollDcim(); }
             catch (Exception e) { Log("Dell Command | Monitor not available, no RPM/temp sensors: " + e.Message); }
@@ -87,6 +89,24 @@ namespace DellPrecision7820
                 }
             }) { IsBackground = true, Name = "DellPrecision7820 DCIM poll" };
             _poller.Start();
+        }
+
+        // The fan-mode tokens (0x332 auto, 0x334, 0x335 low, 0x333 high) all read back one shared
+        // value. Zone floors only apply in "auto" (0); low/high are BIOS fan-curve profiles that
+        // ignore the zones. The plugin never changes the mode, it only warns.
+        void WarnIfZonesIgnored()
+        {
+            try
+            {
+                int mode = _smbios.ReadToken(0x0332);
+                if (mode != 0)
+                {
+                    var name = mode switch { 2 => "low", 3 => "high", _ => mode.ToString(CultureInfo.InvariantCulture) };
+                    Log($"WARNING: BIOS fan mode is '{name}', which ignores the zone controls. " +
+                        "Set the fan mode to Auto (BIOS setup, or Dell7820Fan.ps1 mode auto) for the zones to take effect.");
+                }
+            }
+            catch (Exception e) { Log("could not read fan mode: " + e.Message); }
         }
 
         public void Load(IPluginSensorsContainer container)

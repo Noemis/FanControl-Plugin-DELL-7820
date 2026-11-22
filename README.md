@@ -50,6 +50,14 @@ changes.
 Which fans a zone drives depends on how the machine is configured, so yours may differ.
 A zone token the BIOS doesn't support is skipped, and a message is logged.
 
+> [!IMPORTANT]
+> **The zone controls only work when the BIOS fan mode is `Auto`.** The `Low` and `High` modes
+> are built-in BIOS fan-curve profiles that ignore the zone settings. In those modes the
+> controls appear to do nothing. The plugin never changes the fan mode; it logs a warning at
+> startup if the mode isn't `Auto`. Set it in BIOS setup or with the companion PowerShell
+> script (`Dell7820Fan.ps1 mode auto`). Verified on hardware: in `High`, a CPU/Memory floor of
+> 80 % changed nothing; in `Auto`, the CPU fans went from about 1500 to about 3450 rpm.
+
 A zone value (0–100 %) sets a **minimum** fan level. The firmware keeps its own thermal control
 and still speeds the fans up above that minimum when the system gets hot. You can raise the
 fans above what the BIOS would choose. You can't push them below the firmware's own curve.
@@ -97,12 +105,26 @@ settings. If the file is invalid, the plugin logs the error and uses the default
 - Dell Precision 7820 Tower. Tested on BIOS 2.53.1. Other Dell workstations with the same
   zone tokens, such as the 5820 and 7920, may work, but they haven't been tested.
 - Windows 10/11.
-- [FanControl](https://getfancontrol.com/) on the .NET 8+ build (tested with v284, .NET 10).
+- [FanControl](https://getfancontrol.com/), **.NET 10 build** (tested with v284). The plugin is
+  compiled against .NET 10, so it won't load in the .NET 4.8 or .NET 8 builds of FanControl.
   FanControl runs elevated, which the plugin needs: the Dell SMBIOS WMI interface denies access
   to non-admin processes.
 - **Optional:** [Dell Command | Monitor](https://www.dell.com/support/kbdoc/en-us/000177080/dell-command-monitor)
   for the RPM and temperature sensors. Without it the zone controls still work, but you get no
   sensors from this plugin.
+
+### Without Dell Command | Monitor
+
+You don't strictly need it. Zone control works without it, and **FanControl already reads the
+CPU temperatures itself**, using its own signed hardware-monitoring components, which keep
+working with Memory Integrity turned on. Build your curves on FanControl's built-in **CPU
+temperature** sensors (CPU package / core temperatures) instead of the Dell ones.
+
+What you lose without Dell Command | Monitor:
+
+- **Fan RPM.** Windows has no other way to read the fan speeds on this machine without a
+  third-party driver. FanControl's pairing and calibration features need RPM, so they won't work.
+- **Board temperatures**: front panel, PCIe ambient, memory and CPU VR.
 
 ## Installation
 
@@ -181,7 +203,8 @@ FanControl writes the plugin's messages, prefixed with `[Dell7820]`, to its log 
 |---|---|
 | `Dell SMBIOS WMI interface (root\wmi:BFn) not found` | Not a supported Dell, or the Dell WMI ACPI driver isn't present. |
 | `Access denied` | FanControl isn't running elevated. |
-| `Dell Command \| Monitor not available` | Dell Command \| Monitor isn't installed. The controls still work, but there are no sensors. |
+| The zone controls do nothing | The BIOS fan mode isn't `Auto` (look for `WARNING: BIOS fan mode is …` in the log). Switch it to `Auto`. |
+| `Dell Command \| Monitor not available` | Dell Command \| Monitor isn't installed. The controls still work, but there are no Dell sensors. Use FanControl's built-in CPU temperatures (see [Without Dell Command \| Monitor](#without-dell-command--monitor)). |
 | `write of token 0x05xx failed, status …` | The BIOS rejected the write. A BIOS admin password can block setting changes. |
 | `zone 0x05xx (…) not supported by this BIOS, skipped` | Normal on models without that zone. Remove it from the config to silence the message. |
 | `paired fan '…' not found, left unpaired` | That fan isn't present. Set `pairedFan` to one of your fan names, or remove it. |
