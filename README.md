@@ -1,0 +1,1 @@
+# FanControl-Plugin-DELL-7820
